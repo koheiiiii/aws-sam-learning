@@ -13,6 +13,8 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 
+import com.zuora.ZuoraClient;
+import dagger.Component;
 /**
  * Handler for requests to Lambda function.
  */
@@ -27,7 +29,14 @@ public class App implements RequestHandler<APIGatewayProxyRequestEvent, APIGatew
                 .withHeaders(headers);
         try {
             final String pageContents = this.getPageContents("https://checkip.amazonaws.com");
-            String output = String.format("{ \"message\": \"hello world\", \"location\": \"%s\" }", pageContents);
+
+            // Zuora SDKのバージョンをログに出力
+            System.out.println(ZuoraClient.class.getName());
+            
+            // Daggerのコンポーネントクラスをログに出力
+            System.out.println(Component.class.getName());
+
+            String output = String.format("{ \"message\": \"hello Lambda\", \"location\": \"%s\" }", pageContents);
 
             return response
                     .withStatusCode(200)
