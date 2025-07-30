@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Zuora Event Handler
+
+Globals:
+  Function:
+    Timeout: 20
+    MemorySize: 512
+
+Parameters:
+  Env:
+    Type: String
+    Description: Deployment environment name (e.g., qa, prod)
+
+Resources:
+  ZuoraEventHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Env}-zuora-event-handler"
+      CodeUri: ZuoraEventHandler/
+      Handler: com.fujifilm.fb.spf.subscription.zuora.complement.ZuoraEventHandler::handleRequest
+      Runtime: java21
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          PARAM1: VALUE
+      Events:
+        ZuoraEvent:
+          Type: Api
+          Properties:
+            Path: /zuora-event
+            Method: post
+
+Outputs:
+  ZuoraEventHandlerApi:
+    Description: "API Gateway endpoint URL for Zuora Event Handler"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/zuora-event/"
+
+  ZuoraEventHandlerFunction:
+    Description: "Zuora Event Handler Lambda Function ARN"
+    Value: !GetAtt ZuoraEventHandlerFunction.Arn
+
+  ZuoraEventHandlerFunctionIamRole:
+    Description: "Implicit IAM Role created for Zuora Event Handler function"
+    Value: !GetAtt ZuoraEventHandlerFunctionRole.Arn
