@@ -9,10 +9,17 @@ repositories {
 dependencies {
     implementation 'com.amazonaws:aws-lambda-java-core:1.2.2'
     implementation 'com.amazonaws:aws-lambda-java-events:3.11.0'
+    implementation 'com.amazonaws:aws-lambda-java-log4j2:1.6.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     implementation 'com.zuora.sdk:zuora-sdk-java:3.8.0'
     implementation 'com.google.dagger:dagger:2.57'
     annotationProcessor 'com.google.dagger:dagger-compiler:2.57'
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    implementation 'software.amazon.awssdk:ssm:2.32.12'
+    implementation 'org.apache.logging.log4j:log4j-layout-template-json:2.17.1'
+    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.19.0'
+    implementation 'org.apache.logging.log4j:log4j-api:2.19.0'
+    implementation 'org.apache.logging.log4j:log4j-core:2.19.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
 }
 
 test {

@@ -1,5 +1,5 @@
 {
-    "body": "{\"message\": \"hello world\"}",
+    "body": "{\"OrderId\": \"abcdefrg01237484\", \"EventCategory\": \"OrderProcessed\", \"EventTime\": \"2023-10-01T12:00:00Z\"}",
     "resource": "/{proxy+}",
     "path": "/path/to/resource",
     "httpMethod": "POST",
