@@ -1,0 +1,22 @@
+# SAM build artifacts
+**/.aws-sam/
+**/.gradle/
+**/build/
+**/out/
+**/.classpath
+**/.project
+**/.settings/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# AWS credentials (念のため)
+.aws/
