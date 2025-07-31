@@ -14,7 +14,7 @@ Parameters:
     Description: Deployment environment name (e.g., qa, prod)
 
 Resources:
-  ZuoraEventHandlerFunction:
+  ZuoraEventHandler:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "${Env}-zuora-event-handler"
@@ -25,7 +25,9 @@ Resources:
         - x86_64
       Environment:
         Variables:
-          PARAM1: VALUE
+          ZUORA_CLIENT_ID: "your-client-id"
+          ZUORA_CLIENT_SECRET_PARAM: "/zuora-event-handler/sbx3/client-secret"
+          ZUORA_ENDPOINT: "https://rest.apisandbox.zuora.com/v1/"
       Events:
         ZuoraEvent:
           Type: Api
@@ -38,10 +40,10 @@ Outputs:
     Description: "API Gateway endpoint URL for Zuora Event Handler"
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/zuora-event/"
 
-  ZuoraEventHandlerFunction:
+  ZuoraEventHandler:
     Description: "Zuora Event Handler Lambda Function ARN"
-    Value: !GetAtt ZuoraEventHandlerFunction.Arn
+    Value: !GetAtt ZuoraEventHandler.Arn
 
-  ZuoraEventHandlerFunctionIamRole:
+  ZuoraEventHandlerIamRole:
     Description: "Implicit IAM Role created for Zuora Event Handler function"
-    Value: !GetAtt ZuoraEventHandlerFunctionRole.Arn
+    Value: !GetAtt ZuoraEventHandlerRole.Arn
