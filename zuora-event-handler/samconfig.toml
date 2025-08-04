@@ -16,10 +16,10 @@ lint = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
-s3_prefix = "qa-zuora-event-handler-stack"
+s3_prefix = "qa-zuora-event-handler"
 region = "ap-northeast-1"
 image_repositories = []
-stack_name = "qa-zuora-event-handler-stack"
+stack_name = "qa-zuora-event-handler"
 parameter_overrides = "Env=\"qa\""
 
 [default.package.parameters]
