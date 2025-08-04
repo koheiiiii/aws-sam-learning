@@ -19,31 +19,29 @@ Resources:
     Properties:
       FunctionName: !Sub "${Env}-zuora-event-handler"
       CodeUri: ZuoraEventHandler/
-      Handler: com.fujifilm.fb.spf.subscription.zuora.complement.ZuoraEventHandler::handleRequest
+      Handler: com.fujifilm.fb.spf.subscription.zuora.complement.ZuoraEventHandlerApp::handleRequest
       Runtime: java21
       Architectures:
         - x86_64
+      Layers:
+        - arn:aws:lambda:ap-northeast-1:133490724326:layer:AWS-Parameters-and-Secrets-Lambda-Extension:18
       Environment:
         Variables:
           ZUORA_CLIENT_ID: "your-client-id"
-          ZUORA_CLIENT_SECRET_PARAM: "/zuora-event-handler/sbx3/client-secret"
+          ZUORA_API_SECRET: "qa/zuora/apis"
           ZUORA_ENDPOINT: "https://rest.apisandbox.zuora.com/v1/"
-      Events:
-        ZuoraEvent:
-          Type: Api
-          Properties:
-            Path: /zuora-event
-            Method: post
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: arn:aws:secretsmanager:ap-northeast-1:482206272043:secret:qa/zuora/apis-9BPW5E
+          - Effect: Allow
+            Action:
+              - lambda:GetLayerVersion
+            Resource: arn:aws:lambda:ap-northeast-1:133490724326:layer:AWS-Parameters-and-Secrets-Lambda-Extension:18
 
 Outputs:
-  ZuoraEventHandlerApi:
-    Description: "API Gateway endpoint URL for Zuora Event Handler"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/zuora-event/"
-
   ZuoraEventHandler:
     Description: "Zuora Event Handler Lambda Function ARN"
     Value: !GetAtt ZuoraEventHandler.Arn
-
-  ZuoraEventHandlerIamRole:
-    Description: "Implicit IAM Role created for Zuora Event Handler function"
-    Value: !GetAtt ZuoraEventHandlerRole.Arn

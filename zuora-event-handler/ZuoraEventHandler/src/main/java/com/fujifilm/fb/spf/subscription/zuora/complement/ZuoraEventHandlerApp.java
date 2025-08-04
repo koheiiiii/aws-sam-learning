@@ -4,9 +4,12 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
-import software.amazon.awssdk.services.ssm.SsmClient;
-import software.amazon.awssdk.services.ssm.model.GetParameterRequest;
-import software.amazon.awssdk.services.ssm.model.GetParameterResponse;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.openapitools.client.model.Order;
@@ -19,9 +22,9 @@ import com.zuora.sdk.ZuoraClient;
 /**
  * Handler for requests to Lambda function.
  */
-public class ZuoraEventHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+public class ZuoraEventHandlerApp implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
-  private static final Logger logger = LogManager.getLogger(ZuoraEventHandler.class);
+  private static final Logger logger = LogManager.getLogger(ZuoraEventHandlerApp.class);
     
   public APIGatewayProxyResponseEvent handleRequest(final APIGatewayProxyRequestEvent input, final Context context) {
     logger.info("===== zuoraイベント受信 =====");
@@ -41,20 +44,43 @@ public class ZuoraEventHandler implements RequestHandler<APIGatewayProxyRequestE
     logger.info("Order ID: {}", orderId);
 
     logger.info("===== 環境変数から取得 =====");
-    String clientId = System.getenv("ZUORA_CLIENT_ID");
     String zuoraEndpoint = System.getenv("ZUORA_ENDPOINT");
-    logger.info("Client ID: {}", clientId);
     logger.info("Zuora Endpoint: {}", zuoraEndpoint);
 
-    logger.info("===== SSM Parameter Storeからシークレット取得 =====");
-    SsmClient ssmClient = SsmClient.create();
-    GetParameterRequest paramRequest = GetParameterRequest.builder()
-        .name(System.getenv("ZUORA_CLIENT_SECRET_PARAM"))
-        .withDecryption(true)
-        .build();
-    GetParameterResponse paramResponse = ssmClient.getParameter(paramRequest);
-    String clientSecret = paramResponse.parameter().value();
-    logger.info("Client Secret: {}", clientSecret);
+    logger.info("===== Secrets Managerからシークレット取得 =====");
+    String clientId = null;
+    String clientSecret = null;
+    String secretParam = System.getenv("ZUORA_API_SECRET");
+    String sessionToken = System.getenv("AWS_SESSION_TOKEN");
+    String endpoint = "http://localhost:2773/secretsmanager/get?secretId=" + secretParam;
+
+    try {
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(endpoint))
+            .header("X-Aws-Parameters-Secrets-Token", sessionToken)
+            .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        String secretJson = response.body();
+
+        logger.info("secretJson: {}", secretJson);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode secretNode = mapper.readTree(secretJson);
+
+        String secretString = secretNode.get("SecretString").asText();
+        JsonNode secretValue = mapper.readTree(secretString);
+        clientId = secretValue.get("ClientID").asText();
+        clientSecret = secretValue.get("ClientSecret").asText();
+        logger.info("client_id: {}", clientId);
+        logger.info("client_secret: {}", clientSecret);
+    } catch (Exception e) {
+        logger.warn("Extension経由で取得できなかったため、SDKでSecrets Managerから取得します: {}", e.getMessage());
+        // SDKで直接取得する処理をここに書く
+    }
+
+    logger.info("===== publicSubscriptionIdを生成 =====");
+    String publicSubscriptionId = SubscriptionIdGenerator.generate();
+    logger.info("publicSubscriptionId: {}", publicSubscriptionId);
 
     // logger.info("===== orderIdからorderを取得 =====");
     // ZuoraClient zuoraClient = new ZuoraClient(clientId, clientSecret, zuoraEndpoint);
