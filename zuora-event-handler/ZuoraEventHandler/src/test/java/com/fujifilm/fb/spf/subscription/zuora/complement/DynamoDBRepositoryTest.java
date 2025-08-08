@@ -6,9 +6,12 @@ import org.junit.jupiter.api.DisplayName;
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+
+import org.mockito.ArgumentCaptor;
 
 class DynamoDbRepositoryTest {
     // DynamoDbClientのモックを使用して、DynamoDbRepositoryのテストを行います
@@ -66,5 +69,39 @@ class DynamoDbRepositoryTest {
             repository.putSubscriptionRecord("order-1234", "abcd-efgh-ijkl")
         );
         assertEquals("publicSubscriptionId must be in nnnn-nnnn-nnnn format", e.getMessage());
+    }
+
+    @Test
+    @DisplayName("異常系: 重複するpublicSubscriptionIdの場合はConditionalCheckFailedException")
+    void testPutSubscriptionRecordDuplicatePublicSubscriptionId() {
+        // Mockで ConditionalCheckFailedException を発生させる
+        when(mockClient.putItem(any(PutItemRequest.class)))
+            .thenThrow(ConditionalCheckFailedException.builder()
+                .message("Conditional check failed")
+                .build());
+
+        // ConditionalCheckFailedException が発生することを確認
+        assertThrows(ConditionalCheckFailedException.class, () ->
+            repository.putSubscriptionRecord("order-1234", "1234-5678-9012")
+        );
+        
+        // putItemが呼ばれていることを確認
+        verify(mockClient, times(1)).putItem(any(PutItemRequest.class));
+    }
+
+    @Test
+    @DisplayName("正常系: conditionExpressionが正しく設定されている")
+    void testPutSubscriptionRecordConditionExpression() {
+        // putItemRequestをキャプチャして条件式を確認
+        ArgumentCaptor<PutItemRequest> requestCaptor = ArgumentCaptor.forClass(PutItemRequest.class);
+        
+        repository.putSubscriptionRecord("order-1234", "1234-5678-9012");
+        
+        verify(mockClient).putItem(requestCaptor.capture());
+        PutItemRequest capturedRequest = requestCaptor.getValue();
+        
+        // conditionExpression が正しく設定されていることを確認
+        assertEquals("attribute_not_exists(public_subscription_id)", 
+                    capturedRequest.conditionExpression());
     }
 }
