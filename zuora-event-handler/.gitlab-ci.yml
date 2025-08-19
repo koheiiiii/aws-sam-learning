@@ -11,19 +11,50 @@ stages:
 variables:
   # AWS設定
   AWS_DEFAULT_REGION: "ap-northeast-1"
-  # Java設定
-  JAVA_VERSION: "21"
+  # Gradle設定
   GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+
+# =============================================================================
+# 共通Java設定
+# =============================================================================
+.java_template: &java_template
+  image: openjdk:21-jdk
+  before_script:
+    - cd ZuoraEventHandler
+    - chmod +x ./gradlew
+  cache:
+    key: gradle-cache-$CI_COMMIT_REF_SLUG
+    paths:
+      - .gradle/
+      - ZuoraEventHandler/.gradle/
+      - ZuoraEventHandler/build/
+
+# =============================================================================
+# 共通デプロイ設定
+# =============================================================================
+.deploy_template: &deploy_template
+  image: 
+    name: public.ecr.aws/sam/build-provided.al2:latest
+    entrypoint: [""]
+  before_script:
+    # AWS CLI設定
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set default.region $AWS_DEFAULT_REGION
+    # Java環境設定
+    - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
+    - export PATH=$JAVA_HOME/bin:$PATH
+    - java -version
+  dependencies:
+    - build
 
 # =============================================================================
 # テストステージ（全ブランチで実行）
 # =============================================================================
 test:
+  <<: *java_template
   stage: test
-  image: openjdk:21-jdk
-  before_script:
-    - cd ZuoraEventHandler
-    - chmod +x ./gradlew
   script:
     - ./gradlew test --no-daemon
   artifacts:
@@ -42,11 +73,8 @@ test:
 # ビルドステージ
 # =============================================================================
 build:
+  <<: *java_template
   stage: build
-  image: openjdk:21-jdk
-  before_script:
-    - cd ZuoraEventHandler
-    - chmod +x ./gradlew
   script:
     - ./gradlew build --no-daemon
   artifacts:
@@ -62,19 +90,8 @@ build:
 # QA環境デプロイ（developブランチ）
 # =============================================================================
 deploy-qa:
+  <<: *deploy_template
   stage: deploy-qa
-  image: 
-    name: public.ecr.aws/sam/build-provided.al2:latest
-    entrypoint: [""]
-  before_script:
-    # AWS CLI設定
-    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-    - aws configure set default.region $AWS_DEFAULT_REGION
-    # Java環境設定
-    - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
-    - export PATH=$JAVA_HOME/bin:$PATH
-    - java -version
   script:
     - echo "QA環境へのデプロイを開始します"
     - sam build --template-file template.yaml
@@ -86,32 +103,17 @@ deploy-qa:
     url: https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/stackinfo?stackId=qa-zuora-event-handler
   rules:
     - if: $CI_COMMIT_BRANCH == "develop"
-  dependencies:
-    - build
-  needs:
-    - build
 
 # =============================================================================
 # 本番環境デプロイ（mainブランチ、手動実行）
 # =============================================================================
 deploy-prod:
+  <<: *deploy_template
   stage: deploy-prod
-  image: 
-    name: public.ecr.aws/sam/build-provided.al2:latest
-    entrypoint: [""]
-  before_script:
-    # AWS CLI設定
-    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-    - aws configure set default.region $AWS_DEFAULT_REGION
-    # Java環境設定
-    - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
-    - export PATH=$JAVA_HOME/bin:$PATH
-    - java -version
   script:
     - echo "本番環境へのデプロイを開始します"
     - sam build --template-file template.prod.yaml
-    - sam deploy --config-env prod  # confirm_changeset=trueなので手動承認が必要
+    - sam deploy --config-env prod
     - echo "本番環境へのデプロイが完了しました"
     - echo "スタック名: prod-zuora-event-handler"
   environment:
@@ -119,11 +121,12 @@ deploy-prod:
     url: https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/stackinfo?stackId=prod-zuora-event-handler
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-      when: manual  # 手動実行のみ
-  dependencies:
-    - build
-  needs:
-    - build
+      when: manual
+  after_script:
+    - |
+      if [ $CI_JOB_STATUS == "failed" ]; then
+        echo "本番環境デプロイに失敗しました。CloudFormationコンソールで詳細を確認してください。"
+      fi
 
 # =============================================================================
 # GitLab CI Variables that need to be set:
