@@ -1,18 +1,18 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Zuora Event Handler - QA Environment
+  Zuora Event Handler - Production Environment
 
 Globals:
   Function:
-    Timeout: 20
-    MemorySize: 512
+    Timeout: 30
+    MemorySize: 1024
 
 Parameters:
   Env:
     Type: String
     Description: Deployment environment name
-    Default: "qa"
+    Default: "prod"
 
 Resources:
   ZuoraEventHandler:
@@ -28,16 +28,16 @@ Resources:
         - !Sub "arn:aws:lambda:${AWS::Region}:133490724326:layer:AWS-Parameters-and-Secrets-Lambda-Extension:18"
       Environment:
         Variables:
-          ZUORA_API_SECRET: "qa/zuora/apis"
-          ZUORA_ENDPOINT: "https://rest.apisandbox.zuora.com/v1/"
-          LOG_LEVEL: "INFO"
+          ZUORA_API_SECRET: "prod/zuora/apis"
+          ZUORA_ENDPOINT: "https://rest.zuora.com/v1/"
+          LOG_LEVEL: "WARN"
           ENV: !Ref Env
       Policies:
         - Statement:
           - Effect: Allow
             Action:
               - secretsmanager:GetSecretValue
-            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:qa/zuora/apis*"
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/zuora/apis*"
           - Effect: Allow
             Action:
               - lambda:GetLayerVersion

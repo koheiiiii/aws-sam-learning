@@ -1,11 +1,86 @@
-# sam-app
+# Zuora Event Handler
 
-This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders.
+ZuoraオーダーイベントをAWS Lambda で処理するサーバーレスアプリケーションです。
 
-- HelloWorldFunction/src/main - Code for the application's Lambda function.
-- events - Invocation events that you can use to invoke the function.
-- HelloWorldFunction/src/test - Unit tests for the application code. 
-- template.yaml - A template that defines the application's AWS resources.
+## プロジェクト構成
+
+- **ZuoraEventHandler/** - Lambda関数のJavaコード
+  - `src/main/java/` - アプリケーションコード
+  - `src/test/java/` - ユニットテスト
+  - `build.gradle` - Gradle設定
+- **events/** - テスト用のイベントファイル  
+- **template.yaml** - AWS SAMテンプレート
+- **samconfig.toml** - 環境別デプロイ設定
+- **deploy.ps1** / **deploy.sh** - デプロイスクリプト
+
+## 環境別デプロイ
+
+このプロジェクトは以下の環境に対応しています：
+
+- **dev** - 個人開発環境
+- **qa** - QA環境  
+- **prod** - 本番環境
+
+### 個人開発での使用方法
+
+#### クイックデプロイ（推奨）
+```powershell
+# 高速デプロイ（確認なし、キャッシュあり）
+.\quick-deploy.ps1
+```
+
+#### ローカルテスト
+```powershell
+# Lambda関数をローカルで実行
+.\local-test.ps1
+
+# 特定のイベントファイルでテスト
+.\local-test.ps1 -EventFile "events\custom-event.json"
+```
+
+### 手動デプロイ
+
+```bash
+# ビルド
+cd ZuoraEventHandler
+./gradlew build
+cd ..
+
+# SAMビルド & デプロイ
+sam build --config-env dev
+sam deploy --config-env dev
+```
+
+## CI/CD自動デプロイ
+
+このプロジェクトはGitLab CI/CDを使用して自動デプロイを行います：
+
+### 自動デプロイフロー
+
+1. **テスト**: 全てのブランチでテスト実行
+2. **QA環境**: `develop` ブランチにマージ時に自動デプロイ
+3. **本番環境**: `main` ブランチにマージ時に手動デプロイ可能
+
+### GitLab CI/CD設定
+
+以下の環境変数をGitLab Project Settings > CI/CD > Variables に設定してください：
+
+- `AWS_ACCESS_KEY_ID` (protected, masked)
+- `AWS_SECRET_ACCESS_KEY` (protected, masked)
+
+### デプロイ手順
+
+```bash
+# 開発完了後
+git checkout develop
+git merge feature/your-feature
+git push origin develop  # → QA環境に自動デプロイ
+
+# QA確認後
+git checkout main  
+git merge develop
+git push origin main     # → 本番環境デプロイ準備完了（手動実行）
+```
 
 The application uses several AWS resources, including Lambda functions and an API Gateway API. These resources are defined in the `template.yaml` file in this project. You can update the template to add AWS resources through the same deployment process that updates your application code.
 
@@ -51,7 +126,48 @@ The first command will build the source of your application. The second command 
 
 You can find your API Gateway Endpoint URL in the output values displayed after deployment.
 
-## Use the SAM CLI to build and test locally
+## Build & Test Commands
+
+便利なバッチファイルを使って効率的に開発できます。
+
+### 🔧 Build Commands
+
+**方法A: インタラクティブメニュー**
+```batch
+.\build-commands.bat
+```
+- [1] Gradle build (高速開発用)
+- [2] SAM build (Lambda用パッケージング)
+- [3] SAM build --use-container (クリーンビルド)
+- [4] 全部クリーンして再ビルド
+- [5] ビルド成果物の確認
+
+**方法B: 高速ビルド**
+```batch
+.\quick-build.bat
+```
+Gradle build → SAM build を自動実行
+
+### 🧪 Test Commands
+
+```batch
+.\test-commands.bat
+```
+- [1] Gradle Test (ユニットテスト)
+- [2] Main Method Test (直接実行)
+- [3] SAM Local Invoke Test
+- [4] 全部テスト (Build + Test)
+
+### 📋 Version Check
+
+```batch
+.\check-versions.bat
+```
+ローカルJava・Docker Lambda Java・SAM CLIのバージョン確認
+
+---
+
+## Traditional SAM CLI Commands
 
 Build your application with the `sam build` command.
 

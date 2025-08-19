@@ -33,8 +33,14 @@ public class ZuoraEventHandlerApp implements RequestHandler<APIGatewayProxyReque
   @Inject
   DynamoDbRepository dynamoDbRepository;
   
+  @Inject
+  OrderValidator orderValidator;
+  
   // Daggerコンポーネントの初期化（コンストラクタで実行）
   public ZuoraEventHandlerApp() {
+    // sam local invoke環境でSSL証明書エラー回避
+    SslConfig.disableSslVerification();
+    
     DaggerApplicationComponent.create().inject(this);
   }
     
@@ -55,14 +61,46 @@ public class ZuoraEventHandlerApp implements RequestHandler<APIGatewayProxyReque
     }
     logger.info("Order ID: {}", orderId);
 
+    logger.info("===== オーダーバリデーション実行 =====");
+    try {
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode bodyNode = mapper.readTree(body);
+      OrderValidator.ValidationResult validationResult = orderValidator.validateOrder(bodyNode);
+      
+      if (validationResult != OrderValidator.ValidationResult.VALID) {
+        logger.warn("❌ オーダーバリデーションエラー: {}", validationResult);
+        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
+        response.setStatusCode(400);
+        response.setBody("{ \"error\": \"Order validation failed\", \"reason\": \"" + validationResult + "\" }");
+        return response;
+      }
+      logger.info("✅ オーダーバリデーション成功");
+    } catch (Exception e) {
+      logger.error("オーダーバリデーション処理中にエラーが発生しました", e);
+      APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
+      response.setStatusCode(500);
+      response.setBody("{ \"error\": \"Internal server error during validation\" }");
+      return response;
+    }
+
     logger.info("===== 環境変数から取得 =====");
     String zuoraEndpoint = System.getenv("ZUORA_ENDPOINT");
+    // IDE実行時は環境変数がないため、デフォルト値を設定
+    if (zuoraEndpoint == null) {
+      zuoraEndpoint = "https://rest.apisandbox.zuora.com/v1/";
+      logger.info("環境変数なし、デフォルト値使用");
+    }
     logger.info("Zuora Endpoint: {}", zuoraEndpoint);
 
     logger.info("===== Secrets Managerからシークレット取得 =====");
     String clientId = null;
     String clientSecret = null;
     String secretParam = System.getenv("ZUORA_API_SECRET");
+    // IDE実行時は環境変数がないため、デフォルト値を設定
+    if (secretParam == null) {
+      secretParam = "qa/zuora/apis";
+      logger.info("環境変数なし、デフォルト値使用");
+    }
     String sessionToken = System.getenv("AWS_SESSION_TOKEN");
     String endpoint = "http://localhost:2773/secretsmanager/get?secretId=" + secretParam;
 
@@ -114,34 +152,6 @@ public class ZuoraEventHandlerApp implements RequestHandler<APIGatewayProxyReque
     
     logger.info("===== ZuoraでSubscription作成 =====");
     try {
-        // ZuoraClient zuoraClient = new ZuoraClient(clientId, clientSecret, zuoraEndpoint);
-        
-        // OrderからSubscriptionを作成
-        logger.info("===== orderIdからorderを取得 =====");
-        // Order order = zuoraClient.orders().getOrder(orderId);
-        // logger.info("Order retrieved: {}", order);
-        
-        // Subscription作成の準備
-        logger.info("===== Subscription作成処理 =====");
-        
-        // TODO: 実際のSubscription作成処理
-        // 以下は疑似コードです。実際のZuora SDK APIに合わせて修正が必要です。
-        /*
-        CreateSubscriptionRequest subscriptionRequest = new CreateSubscriptionRequest();
-        subscriptionRequest.setAccountId(order.getAccountId());
-        subscriptionRequest.setContractEffectiveDate(LocalDate.now());
-        
-        // カスタムフィールドにpublic_subscription_idを設定
-        Map<String, Object> customFields = new HashMap<>();
-        customFields.put("public_subscription_id__c", publicSubscriptionId);
-        subscriptionRequest.setCustomFields(customFields);
-        
-        // Subscription作成実行
-        Subscription subscription = zuoraClient.subscriptions().create(subscriptionRequest);
-        logger.info("Subscription created: {}", subscription.getId());
-        logger.info("Public Subscription ID set: {}", publicSubscriptionId);
-        */
-        
         logger.info("ZuoraでのSubscription作成処理は実装待ちです");
         logger.info("設定予定のpublic_subscription_id: {}", publicSubscriptionId);
         
@@ -151,22 +161,32 @@ public class ZuoraEventHandlerApp implements RequestHandler<APIGatewayProxyReque
             .withStatusCode(500)
             .withBody("{\"message\": \"Failed to create subscription in Zuora\"}");
     }
-    
-    // logger.info("===== orderIdからorderを取得 =====");
-    // ZuoraClient zuoraClient = new ZuoraClient(clientId, clientSecret, zuoraEndpoint);
-    // Order order = null;
-    // try {
-    //   order = zuoraClient.orders().getOrder(orderId);
-    //   logger.info("Order retrieved: {}", order);
-    // } catch (Exception e) {
-    //   logger.error("Failed to get order from Zuora", e);
-    //   return new APIGatewayProxyResponseEvent()
-    //       .withStatusCode(500)
-    //       .withBody("{\"message\": \"Failed to get order from Zuora\"}");
-    // }
 
     return new APIGatewayProxyResponseEvent()
         .withStatusCode(200)
         .withBody("{\"message\": \"hello Lambda\"}");
+    }
+
+  /**
+   * IDE実行・デバッグ用のmain関数
+   * SAM Lambda環境では使用されない
+   */
+  public static void main(String[] args) {
+    try {
+      ZuoraEventHandlerApp handler = new ZuoraEventHandlerApp();
+      
+      // テスト用のLambdaリクエスト作成
+      APIGatewayProxyRequestEvent testRequest = new APIGatewayProxyRequestEvent();
+      testRequest.setBody("{\"OrderId\": \"test-order-12345\"}");
+      
+      // handleRequestメソッドを実行
+      APIGatewayProxyResponseEvent response = handler.handleRequest(testRequest, null);
+      
+      // 結果表示
+      logger.info("Status: {}, Body: {}", response.getStatusCode(), response.getBody());
+      
+    } catch (Exception e) {
+      logger.error("Execution failed: {}", e.getMessage(), e);
+    }
   }
 }

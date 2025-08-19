@@ -13,7 +13,7 @@ import jakarta.inject.Singleton;
  * </p>
  */
 @Singleton
-@Component(modules = {AwsClientModule.class})
+@Component(modules = {AwsClientModule.class, ValidatorModule.class})
 public interface ApplicationComponent {
     
     /**
