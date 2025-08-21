@@ -38,8 +38,37 @@ public class SslConfig {
             // → 「証明書のホスト名、URLと一致する？」チェックを無効化
             HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
             
+            // 【4】OkHttp3用のSSL設定を追加（Zuora SDK対応）
+            configureOkHttpSsl(trustAllCerts);
+            
         } catch (Exception e) {
             System.err.println("SSL無効化設定エラー: " + e.getMessage());
+        }
+    }
+
+    /**
+     * OkHttp3クライアント用のSSL証明書チェック無効化
+     * Zuora SDKが内部で使用するOkHttp3クライアントに適用
+     */
+    private static void configureOkHttpSsl(TrustManager[] trustAllCerts) {
+        try {
+            // SSLContextを作成
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+            
+            // JVMレベルでSSL証明書検証を無効化
+            // これによりOkHttp3も含めた全てのHTTPS通信に影響
+            System.setProperty("com.sun.net.ssl.checkRevocation", "false");
+            System.setProperty("sun.security.ssl.allowUnsafeRenegotiation", "true");
+            
+            // SSL証明書の検証を完全に無効化
+            System.setProperty("trust_all_cert", "true");
+            
+            // OkHttp3向け：デフォルトSSLContextを設定
+            SSLContext.setDefault(sslContext);
+            
+        } catch (Exception e) {
+            System.err.println("OkHttp SSL設定エラー: " + e.getMessage());
         }
     }
 }
