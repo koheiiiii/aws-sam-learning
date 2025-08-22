@@ -88,7 +88,7 @@ deploy-qa:
     - sam build --template-file template.yaml
     - sam deploy --config-env qa --no-confirm-changeset
     - echo "QA環境へのデプロイが完了しました"
-    - echo "スタック名: qa-zuora-event-handler"
+    - echo "Stack name qa-zuora-event-handler"
   environment:
     name: qa
     url: https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/stackinfo?stackId=qa-zuora-event-handler
@@ -118,7 +118,7 @@ deploy-prod:
     - sam build --template-file template.prod.yaml
     - sam deploy --config-env prod
     - echo "本番環境へのデプロイが完了しました"
-    - echo "スタック名: prod-zuora-event-handler"
+    - echo "Stack name prod-zuora-event-handler"
   environment:
     name: production
     url: https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/stackinfo?stackId=prod-zuora-event-handler
