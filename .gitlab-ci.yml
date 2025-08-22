@@ -1,0 +1,139 @@
+# GitLab CI/CD Pipeline for Zuora Event Handler
+# Auto-deploy to QA when merged to develop branch
+# Auto-deploy to Production when merged to main branch
+
+stages:
+  - test
+  - build
+  - deploy-qa
+  - deploy-prod
+
+variables:
+  # AWS設定
+  AWS_DEFAULT_REGION: "ap-northeast-1"
+  # Gradle設定
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+
+# =============================================================================
+# 共通Java設定
+# =============================================================================
+.java_template: &java_template
+  image: openjdk:21-jdk
+  before_script:
+    - cd zuora-event-handler/ZuoraEventHandler
+    - chmod +x ./gradlew
+  cache:
+    key: gradle-cache-$CI_COMMIT_REF_SLUG
+    paths:
+      - .gradle/
+      - zuora-event-handler/ZuoraEventHandler/.gradle/
+      - zuora-event-handler/ZuoraEventHandler/build/
+
+# =============================================================================
+# 共通デプロイ設定
+# =============================================================================
+.deploy_template: &deploy_template
+  image: 
+    name: public.ecr.aws/sam/build-provided.al2:latest
+    entrypoint: [""]
+  before_script:
+    # AWS CLI設定
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set default.region $AWS_DEFAULT_REGION
+    # Java環境設定
+    - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
+    - export PATH=$JAVA_HOME/bin:$PATH
+    - java -version
+  dependencies:
+    - build
+
+# =============================================================================
+# テストステージ（全ブランチで実行）
+# =============================================================================
+test:
+  <<: *java_template
+  stage: test
+  script:
+    - ./gradlew test --no-daemon
+  artifacts:
+    reports:
+      junit: zuora-event-handler/ZuoraEventHandler/build/test-results/test/*.xml
+    paths:
+      - zuora-event-handler/ZuoraEventHandler/build/reports/tests/
+    expire_in: 1 week
+  coverage: '/Total.*?([0-9]{1,3})%/'
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# =============================================================================
+# ビルドステージ
+# =============================================================================
+build:
+  <<: *java_template
+  stage: build
+  script:
+    - ./gradlew build --no-daemon
+  artifacts:
+    paths:
+      - zuora-event-handler/ZuoraEventHandler/build/libs/
+      - zuora-event-handler/ZuoraEventHandler/build/distributions/
+    expire_in: 1 day
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# =============================================================================
+# QA環境デプロイ（developブランチ）
+# =============================================================================
+deploy-qa:
+  <<: *deploy_template
+  stage: deploy-qa
+  script:
+    - echo "QA環境へのデプロイを開始します"
+    - cd zuora-event-handler
+    - sam build --template-file template.yaml
+    - sam deploy --config-env qa --no-confirm-changeset
+    - echo "QA環境へのデプロイが完了しました"
+    - echo "スタック名: qa-zuora-event-handler"
+  environment:
+    name: qa
+    url: https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/stackinfo?stackId=qa-zuora-event-handler
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# =============================================================================
+# 本番環境デプロイ（mainブランチ、手動実行）
+# =============================================================================
+deploy-prod:
+  <<: *deploy_template
+  stage: deploy-prod
+  script:
+    - echo "本番環境へのデプロイを開始します"
+    - cd zuora-event-handler
+    - sam build --template-file template.prod.yaml
+    - sam deploy --config-env prod
+    - echo "本番環境へのデプロイが完了しました"
+    - echo "スタック名: prod-zuora-event-handler"
+  environment:
+    name: production
+    url: https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/stackinfo?stackId=prod-zuora-event-handler
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+  after_script:
+    - |
+      if [ $CI_JOB_STATUS == "failed" ]; then
+        echo "本番環境デプロイに失敗しました。CloudFormationコンソールで詳細を確認してください。"
+      fi
+
+# =============================================================================
+# GitLab CI Variables that need to be set:
+# Settings > CI/CD > Variables
+# 
+# AWS_ACCESS_KEY_ID (protected, masked)
+# AWS_SECRET_ACCESS_KEY (protected, masked)
+# =============================================================================
