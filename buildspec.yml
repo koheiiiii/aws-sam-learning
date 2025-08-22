@@ -1,0 +1,58 @@
+version: 0.2
+
+# AWS CodeBuild用のビルド仕様ファイル
+# Java証明書やプロキシの問題が自動的に解決される
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto21
+    commands:
+      - echo "Installing dependencies..."
+      - yum update -y
+      
+  pre_build:
+    commands:
+      - echo "Pre-build phase started on `date`"
+      - cd zuora-event-handler/ZuoraEventHandler
+      - chmod +x ./gradlew
+      - java -version
+      - echo "Current directory:" $(pwd)
+      
+  build:
+    commands:
+      - echo "Build phase started on `date`"
+      # テスト実行
+      - echo "Running tests..."
+      - ./gradlew test --no-daemon --stacktrace
+      
+      # ビルド実行
+      - echo "Building application..."
+      - ./gradlew build --no-daemon --stacktrace
+      
+      # SAMビルド（デプロイ用）
+      - echo "Building SAM application..."
+      - cd ..
+      - sam build --template-file template.yaml
+      
+  post_build:
+    commands:
+      - echo "Post-build phase started on `date`"
+      - echo "Build completed successfully"
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: zuora-event-handler
+  
+reports:
+  junit:
+    files:
+      - 'ZuoraEventHandler/build/test-results/test/*.xml'
+    base-directory: zuora-event-handler
+    file-format: JUNITXML
+
+cache:
+  paths:
+    - '/root/.gradle/**/*'
+    - 'zuora-event-handler/ZuoraEventHandler/.gradle/**/*'
