@@ -23,6 +23,9 @@ variables:
   before_script:
     - cd zuora-event-handler/ZuoraEventHandler
     - chmod +x ./gradlew
+    # Java証明書とネットワーク設定
+    - export GRADLE_OPTS="-Dorg.gradle.daemon=false -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+    - java -version
   cache:
     key: gradle-cache-$CI_COMMIT_REF_SLUG
     paths:
@@ -76,11 +79,23 @@ deploy-qa:
     entrypoint: [""]
   stage: deploy-qa
   before_script:
-    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-    - aws configure set default.region $AWS_DEFAULT_REGION
+    # 環境変数の確認（デバッグ用）
+    - echo "AWS_ACCESS_KEY_ID length:" ${#AWS_ACCESS_KEY_ID}
+    - echo "AWS_SECRET_ACCESS_KEY length:" ${#AWS_SECRET_ACCESS_KEY}
+    # AWS CLI設定（環境変数が空でない場合のみ）
+    - |
+      if [ -n "$AWS_ACCESS_KEY_ID" ]; then
+        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+        aws configure set default.region $AWS_DEFAULT_REGION
+      else
+        echo "ERROR: AWS_ACCESS_KEY_ID is not set"
+        exit 1
+      fi
     - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
     - export PATH=$JAVA_HOME/bin:$PATH
+    # Java証明書設定
+    - export JAVA_OPTS="-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
     - java -version
   script:
     - echo "QA環境へのデプロイを開始します"
@@ -111,6 +126,8 @@ deploy-prod:
     - aws configure set default.region $AWS_DEFAULT_REGION
     - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
     - export PATH=$JAVA_HOME/bin:$PATH
+    # Java証明書設定
+    - export JAVA_OPTS="-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
     - java -version
   script:
     - echo "本番環境へのデプロイを開始します"
