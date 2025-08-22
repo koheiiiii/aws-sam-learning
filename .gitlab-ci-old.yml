@@ -31,6 +31,8 @@ variables:
       - zuora-event-handler/ZuoraEventHandler/build/
 
 # =============================================================================
+# 共通デプロイ設定
+# =============================================================================
 # テストステージ（全ブランチで実行）
 # =============================================================================
 test:
@@ -76,9 +78,11 @@ deploy-qa:
     entrypoint: [""]
   stage: deploy-qa
   before_script:
+    # AWS CLI設定
     - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
     - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
     - aws configure set default.region $AWS_DEFAULT_REGION
+    # Java環境設定
     - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
     - export PATH=$JAVA_HOME/bin:$PATH
     - java -version
@@ -106,9 +110,11 @@ deploy-prod:
     entrypoint: [""]
   stage: deploy-prod
   before_script:
+    # AWS CLI設定
     - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
     - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
     - aws configure set default.region $AWS_DEFAULT_REGION
+    # Java環境設定
     - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
     - export PATH=$JAVA_HOME/bin:$PATH
     - java -version
