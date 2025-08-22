@@ -33,23 +33,6 @@ variables:
 # =============================================================================
 # 共通デプロイ設定
 # =============================================================================
-.deploy_template: &deploy_template
-  image: 
-    name: public.ecr.aws/sam/build-provided.al2:latest
-    entrypoint: [""]
-  before_script:
-    # AWS CLI設定
-    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-    - aws configure set default.region $AWS_DEFAULT_REGION
-    # Java環境設定
-    - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
-    - export PATH=$JAVA_HOME/bin:$PATH
-    - java -version
-  dependencies:
-    - build
-
-# =============================================================================
 # テストステージ（全ブランチで実行）
 # =============================================================================
 test:
@@ -90,8 +73,19 @@ build:
 # QA環境デプロイ（developブランチ）
 # =============================================================================
 deploy-qa:
-  <<: *deploy_template
+  image: 
+    name: public.ecr.aws/sam/build-provided.al2:latest
+    entrypoint: [""]
   stage: deploy-qa
+  before_script:
+    # AWS CLI設定
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set default.region $AWS_DEFAULT_REGION
+    # Java環境設定
+    - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
+    - export PATH=$JAVA_HOME/bin:$PATH
+    - java -version
   script:
     - echo "QA環境へのデプロイを開始します"
     - cd zuora-event-handler
@@ -102,6 +96,8 @@ deploy-qa:
   environment:
     name: qa
     url: https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/stackinfo?stackId=qa-zuora-event-handler
+  dependencies:
+    - build
   rules:
     - if: $CI_COMMIT_BRANCH == "develop"
 
@@ -109,8 +105,19 @@ deploy-qa:
 # 本番環境デプロイ（mainブランチ、手動実行）
 # =============================================================================
 deploy-prod:
-  <<: *deploy_template
+  image: 
+    name: public.ecr.aws/sam/build-provided.al2:latest
+    entrypoint: [""]
   stage: deploy-prod
+  before_script:
+    # AWS CLI設定
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set default.region $AWS_DEFAULT_REGION
+    # Java環境設定
+    - export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
+    - export PATH=$JAVA_HOME/bin:$PATH
+    - java -version
   script:
     - echo "本番環境へのデプロイを開始します"
     - cd zuora-event-handler
@@ -121,14 +128,11 @@ deploy-prod:
   environment:
     name: production
     url: https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/stackinfo?stackId=prod-zuora-event-handler
+  dependencies:
+    - build
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       when: manual
-  after_script:
-    - |
-      if [ $CI_JOB_STATUS == "failed" ]; then
-        echo "本番環境デプロイに失敗しました。CloudFormationコンソールで詳細を確認してください。"
-      fi
 
 # =============================================================================
 # GitLab CI Variables that need to be set:
