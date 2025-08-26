@@ -9,13 +9,15 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
-import com.zuora.sdk.ZuoraClient;
+import dev.failsafe.Failsafe;
+import dev.failsafe.RetryPolicy;
 
 import jakarta.inject.Inject;
 
@@ -26,6 +28,9 @@ import jakarta.inject.Inject;
 public class ZuoraEventHandlerApp implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
   private static final Logger logger = LogManager.getLogger(ZuoraEventHandlerApp.class);
+  
+  // リトライ回数の設定（システムプロパティから変更可能、デフォルト値: 5）
+  private static final int MAX_RETRY_COUNT = Integer.getInteger("dynamodb.subscription.maxRetry", 5);
   
   @Inject
   SubscriptionIdGenerator subscriptionIdGenerator;
@@ -51,13 +56,16 @@ public class ZuoraEventHandlerApp implements RequestHandler<APIGatewayProxyReque
     logger.info("Request body: {}", body);
 
     logger.info("===== orderIdを取得 =====");
-    String orderId = null;
+    final String orderId;
     try {
       ObjectMapper mapper = new ObjectMapper();
       JsonNode bodyNode = mapper.readTree(body);
       orderId = bodyNode.get("OrderId").asText();
     } catch (Exception e) {
       logger.error("Failed to parse OrderId from body", e);
+      return new APIGatewayProxyResponseEvent()
+          .withStatusCode(400)
+          .withBody("{\"message\": \"Invalid request body\"}");
     }
     logger.info("Order ID: {}", orderId);
 
@@ -129,37 +137,44 @@ public class ZuoraEventHandlerApp implements RequestHandler<APIGatewayProxyReque
     }
 
     logger.info("===== DynamoDBに登録 =====");
-    int maxRetry = 5;
-    String publicSubscriptionId = null;
-
-    for (int i = 0; i < maxRetry; i++) {
-        logger.info("===== publicSubscriptionIdを生成 =====");
-        String subscriptionId = subscriptionIdGenerator.generate();
-        logger.info("publicSubscriptionId: {}", subscriptionId);
-        try {
-            dynamoDbRepository.putSubscriptionRecord(orderId, subscriptionId);
-            // 登録成功
-            publicSubscriptionId = subscriptionId;
-            break;
-        } catch (ConditionalCheckFailedException e) {
-            // publicSubscriptionIdが重複していた場合はリトライ
-            if (i == maxRetry - 1) {
-                throw new IllegalStateException("publicSubscriptionIdの重複が解消できませんでした", e);
-            }
-            // 何もしないで次のループで再生成
-        }
-    }
     
-    logger.info("===== ZuoraでSubscription作成 =====");
+    // Failsafeのリトライポリシーを設定
+    RetryPolicy<String> retryPolicy = RetryPolicy.<String>builder()
+        .handle(ConditionalCheckFailedException.class)
+        .withMaxRetries(MAX_RETRY_COUNT - 1) // 最大試行回数 = MAX_RETRY_COUNT
+        .withDelay(Duration.ofMillis(100)) // 100ms待機
+        .onRetry(event -> logger.info("publicSubscriptionID重複のためリトライ: {} 回目", event.getAttemptCount()))
+        .build();
+
     try {
-        logger.info("ZuoraでのSubscription作成処理は実装待ちです");
-        logger.info("設定予定のpublic_subscription_id: {}", publicSubscriptionId);
+        String publicSubscriptionId = Failsafe.with(retryPolicy).get(() -> {
+            logger.info("===== publicSubscriptionIdを生成 =====");
+            String subscriptionId = subscriptionIdGenerator.generate();
+            logger.info("publicSubscriptionId: {}", subscriptionId);
+            
+            dynamoDbRepository.putSubscriptionRecord(orderId, subscriptionId);
+            return subscriptionId;
+        });
+        
+        logger.info("DynamoDB登録完了: {}", publicSubscriptionId);
+        
+        logger.info("===== ZuoraでSubscription作成 =====");
+        try {
+            logger.info("ZuoraでのSubscription作成処理は実装待ちです");
+            logger.info("設定予定のpublic_subscription_id: {}", publicSubscriptionId);
+            
+        } catch (Exception e) {
+            logger.error("Failed to create subscription in Zuora", e);
+            return new APIGatewayProxyResponseEvent()
+                .withStatusCode(500)
+                .withBody("{\"message\": \"Failed to create subscription in Zuora\"}");
+        }
         
     } catch (Exception e) {
-        logger.error("Failed to create subscription in Zuora", e);
+        logger.error("DynamoDB登録でエラーが発生しました", e);
         return new APIGatewayProxyResponseEvent()
             .withStatusCode(500)
-            .withBody("{\"message\": \"Failed to create subscription in Zuora\"}");
+            .withBody("{\"message\": \"Failed to register subscription in DynamoDB\"}");
     }
 
     return new APIGatewayProxyResponseEvent()

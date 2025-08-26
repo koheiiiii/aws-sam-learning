@@ -32,6 +32,8 @@ Resources:
           ZUORA_ENDPOINT: "https://rest.apisandbox.zuora.com/v1/"
           LOG_LEVEL: "INFO"
           ENV: !Ref Env
+          # SSL/TLS settings for Zuora SDK (OkHttp)
+          JAVA_TOOL_OPTIONS: "-Djavax.net.ssl.trustStore=/opt/java/openjdk/lib/security/cacerts -Djavax.net.ssl.trustStorePassword=changeit -Djavax.net.ssl.keyStore=/opt/java/openjdk/lib/security/cacerts -Djavax.net.ssl.keyStorePassword=changeit"
       Policies:
         - Statement:
           - Effect: Allow
