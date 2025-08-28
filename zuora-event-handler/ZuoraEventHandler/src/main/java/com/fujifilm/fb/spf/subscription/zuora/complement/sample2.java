@@ -1,5 +1,4 @@
 public class sample2 {
-    package com.fujifilm.fb.spf.subscription.zuora.complement;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -31,11 +30,6 @@ import org.mockito.MockitoAnnotations;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fujifilm.fb.spf.subscription.zuora.complement.AbisApiClient.ArrangementOrderRequest;
-import com.fujifilm.fb.spf.subscription.zuora.complement.AbisApiClient.ArrangementResponse;
-import com.fujifilm.fb.spf.subscription.zuora.complement.AbisApiClient.ValidationNotificationRequest;
-import com.fujifilm.fb.spf.subscription.zuora.complement.OrderValidator.Result;
-import com.fujifilm.fb.spf.subscription.zuora.complement.provider.SubscriptionProvider;
 import com.zuora.ApiException;
 import com.zuora.JSON;
 import com.zuora.ZuoraClient;
